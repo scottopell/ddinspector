@@ -1,7 +1,18 @@
 package main
 
 import (
+	"crypto/tls"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"time"
+
 	"github.com/rivo/tview"
+)
+
+const (
+	endpointStatus = "/agent/status"
 )
 
 type IStatusConfig struct {
@@ -16,15 +27,57 @@ type IStatusApp struct {
 	config *IStatusConfig
 }
 
+func (is *IStatusApp) fetchStatusJson() map[string]interface{} {
+	var result map[string]interface{}
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	// TODO shorten this, take into account the refresh cycle
+	c := http.Client{Timeout: time.Duration(1) * time.Second, Transport: tr}
+
+	endpoint := fmt.Sprintf("https://%s:%d/%s", is.config.statusUri, is.config.statusPort, endpointStatus)
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		panic(err)
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", is.config.authToken))
+
+	resp, err := c.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		panic(err)
+	}
+	fmt.Println(result)
+
+	return result
+
+}
+
 func (is *IStatusApp) getStatusText() *tview.TextView {
 
 	// TODO
-	return &tview.TextView{}
+	tv := tview.NewTextView().SetChangedFunc(func() {
+		is.app.Draw()
+	})
+
+	statusObj := is.fetchStatusJson()
+	fmt.Fprintf(tv, statusObj["version"].(string))
+
+	return tv
 }
 
 func (is *IStatusApp) getRoot() *tview.Flex {
 	flex := tview.NewFlex().
-		AddItem(tview.NewBox().SetBorder(true).SetTitle("Left (1/2 x width of Top)"), 0, 1, false).
+		AddItem(is.getStatusText(), 0, 1, false).
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
 			AddItem(tview.NewBox().SetBorder(true).SetTitle("Top"), 0, 1, false).
 			AddItem(tview.NewBox().SetBorder(true).SetTitle("Middle (3 x height of Top)"), 0, 3, false).
@@ -41,7 +94,7 @@ func (is *IStatusApp) Run() {
 }
 
 func main() {
-	authToken := "TODO" // READ FROM DISK
+	authToken := "fadca502938f8f0c71a4bd20e84d99093f5227de1d87ee83a110297720f022c9" // READ FROM DISK
 	config := IStatusConfig{
 		statusUri:     "localhost",
 		statusPort:    5001,
