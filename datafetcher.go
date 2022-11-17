@@ -61,8 +61,8 @@ func (df *DataFetcher) testAuthToken(token string) bool {
 	return resp.StatusCode == 200
 }
 
-func (df *DataFetcher) statusJson() map[string]interface{} {
-	var result map[string]interface{}
+func (df *DataFetcher) statusJson() map[string]any {
+	var result map[string]any
 
 	req := df.constructRequest(endpointStatus)
 	resp, err := df.client.Do(req)
