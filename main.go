@@ -12,5 +12,6 @@ func main() {
 		df:  df,
 	}
 
+	app.InitState()
 	app.Run()
 }

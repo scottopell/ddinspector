@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/user"
-	"time"
 )
 
 const (
@@ -31,8 +30,11 @@ func NewDataFetcher(host string, port int) *DataFetcher {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
-	// TODO shorten this, take into account the refresh cycle
-	c := http.Client{Timeout: time.Duration(1) * time.Second, Transport: tr}
+	// TODO Enable timeout here taking into account the refresh interval
+	// but disabled for now because when running inside a debugger this will cause a
+	// panic when the timout is exceeded
+	//c := http.Client{Timeout: time.Duration(1) * time.Second, Transport: tr}
+	c := http.Client{Transport: tr}
 
 	df := DataFetcher{
 		host:   host,
@@ -84,7 +86,7 @@ func (df *DataFetcher) setAuthTokenFromEnv() {
 	}
 
 	if authToken == "" {
-		panic(errors.New("No valid auth_tokens found!"))
+		panic(errors.New("no valid auth_tokens found"))
 	} else {
 		df.AuthToken = authToken
 	}
