@@ -28,6 +28,7 @@ func (is *IStatusApp) Run() {
 	}()
 	root := overviewPage.rootFlex
 	is.app.SetRoot(root, true)
+	is.app.EnableMouse(true)
 	is.app.SetFocus(root)
 	if err := is.app.Run(); err != nil {
 		panic(err)
