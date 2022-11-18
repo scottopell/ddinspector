@@ -50,9 +50,12 @@ func (is *IStatusApp) Run() {
 	if err != nil {
 		panic(err)
 	}
+
+	tabbedPanels := cview.NewTabbedPanels()
+
 	newStatusChan := make(chan map[string]any)
 	is.dogstatsdUpdateChan = make(chan DogstatsdPageProps)
-	_ = NewOverviewPage(newStatusChan, is.app.QueueUpdateDraw)
+	overviewPage := NewOverviewPage(newStatusChan, is.app.QueueUpdateDraw)
 
 	dogstatsdPage := NewDogstatsdPage(is.dogstatsdUpdateChan, is.app.QueueUpdateDraw, is.SetDogstatsdCaptureEnabled)
 
@@ -64,7 +67,14 @@ func (is *IStatusApp) Run() {
 		}
 	}()
 
-	root := dogstatsdPage.rootFlex
+	streamLogsPage := NewStreamLogsPage()
+
+	tabbedPanels.AddTab("overview", "Overview", overviewPage.rootFlex)
+	tabbedPanels.AddTab("dogstatsd", "Dogstatsd", dogstatsdPage.rootFlex)
+	tabbedPanels.AddTab("stream_logs", "Stream Logs", streamLogsPage.rootFlex)
+
+	root := tabbedPanels
+
 	is.app.SetRoot(root, true)
 	is.app.EnableMouse(true)
 	is.app.SetFocus(root)
