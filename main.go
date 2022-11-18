@@ -2,8 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
+	"log"
 	"os"
+	"os/user"
 
 	"code.rocketnine.space/tslocum/cview"
 )
@@ -17,8 +20,15 @@ func getAuthToken(tester func(string) bool) (string, error) {
 	// Start with list of common locations
 	// TODO - would be cool to have some "autodiscovery" here based on the currently running agent
 	// https://github.com/mitchellh/go-ps
+	currUser, err := user.Current()
+	if err != nil {
+		log.Fatal(err)
+	}
+	authTokenLoc1 := fmt.Sprintf("/Users/%s/go/src/github.com/DataDog/datadog-agent/bin/agent/dist/auth_token", currUser.Username)
+	authTokenLoc2 := fmt.Sprintf("/Users/%s/code/datadog-agent/bin/agent/dist/auth_token", currUser.Username)
 	locations := [...]string{
-		"/Users/scott.opell/go/src/github.com/DataDog/datadog-agent/bin/agent/dist/auth_token",
+		authTokenLoc1,
+		authTokenLoc2,
 		"/etc/datadog-agent",
 		"/opt/datadog-agent/etc/auth_token",
 	}
