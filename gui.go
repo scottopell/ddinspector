@@ -4,11 +4,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/rivo/tview"
+	"code.rocketnine.space/tslocum/cview"
 )
 
 type IStatusApp struct {
-	app *tview.Application
+	app *cview.Application
 	df  *DataFetcher
 }
 
@@ -19,17 +19,17 @@ func (is *IStatusApp) Run() {
 		panic(err)
 	}
 	newStatusChan := make(chan map[string]any)
-	overviewPage := NewOverviewPage(newStatusChan)
+	overviewPage := NewOverviewPage(newStatusChan, is.app.QueueUpdateDraw)
 	go func() {
 		for {
-			is.app.QueueUpdateDraw(func() {
-				newStatusChan <- is.df.statusJson()
-			})
+			newStatusChan <- is.df.statusJson()
 			time.Sleep(refreshInterval)
 		}
 	}()
 	root := overviewPage.rootFlex
-	if err := is.app.SetRoot(root, true).SetFocus(root).Run(); err != nil {
+	is.app.SetRoot(root, true)
+	is.app.SetFocus(root)
+	if err := is.app.Run(); err != nil {
 		panic(err)
 	}
 }
