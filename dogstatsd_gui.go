@@ -30,6 +30,12 @@ func (dp *DogstatsdPage) update(data DogstatsdPageProps) {
 	}
 }
 
+func Separator() *cview.Box {
+	b := cview.NewBox()
+	b.SetBorder(true)
+	return b
+}
+
 func NewDogstatsdPage(newPropsChan chan DogstatsdPageProps, queueUpdateDraw QueueUpdateFunc, setCaptureEnabled func(bool)) *DogstatsdPage {
 	// Layout Initialization
 	displayDogstatsdData := cview.NewTextView()
@@ -51,8 +57,9 @@ func NewDogstatsdPage(newPropsChan chan DogstatsdPageProps, queueUpdateDraw Queu
 
 	parentFlex := cview.NewFlex()
 	parentFlex.SetDirection(cview.FlexRow)
-	parentFlex.AddItem(enableHeaderFlex, 0, 1, false)
-	parentFlex.AddItem(mainFlex, 0, 4, false)
+	parentFlex.AddItem(enableHeaderFlex, 1, 1, false)
+	parentFlex.AddItem(Separator(), 1, 0, false)
+	parentFlex.AddItem(mainFlex, 0, 2, false)
 
 	dogstatsd := DogstatsdPage{
 		displayTextView:                displayDogstatsdData,
