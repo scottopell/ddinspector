@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"code.rocketnine.space/tslocum/cview"
 )
@@ -14,7 +15,7 @@ type DogstatsdPage struct {
 
 type DogstatsdPageProps struct {
 	dogstatsdCaptureEnabled bool
-	dogstatsdData           map[string]any
+	dogstatsdData           map[uint64]MetricStat
 }
 
 func (dp *DogstatsdPage) update(data DogstatsdPageProps) {
@@ -22,13 +23,10 @@ func (dp *DogstatsdPage) update(data DogstatsdPageProps) {
 
 	dp.displayTextView.Clear()
 	if data.dogstatsdData != nil {
-		fmt.Fprintf(dp.displayTextView, "metric | tags | value | timestamp")
-		fmt.Fprintf(dp.displayTextView, "\n sys.cpu | fakehost | 0.4 | 2022-11-18....\n")
-		fmt.Fprintf(dp.displayTextView, "\n sys.mem | fakehost | 3.6 | 2022-11-17....\n")
-		fmt.Fprintf(dp.displayTextView, "\n sys.cpu | fakehost | 1.4 | 2022-11-18....\n")
-		fmt.Fprintf(dp.displayTextView, "\n sys.cpu | fakehost | 0.5 | 2022-11-18....\n")
-		fmt.Fprintf(dp.displayTextView, "\n sys.smth | fakehost | 1.6 | 2022-11-18....\n")
-		fmt.Fprintf(dp.displayTextView, "\n sys.cpu | fakehost | 0.4 | 2022-11-18....\n")
+		fmt.Fprintf(dp.displayTextView, "metric | tags | count | timestamp\n")
+		for _, mstat := range data.dogstatsdData {
+			fmt.Fprintf(dp.displayTextView, "| %s | %s | %d | %s|\n", mstat.Name, mstat.Tags, mstat.Count, mstat.LastSeen.Format(time.RFC3339))
+		}
 	}
 }
 

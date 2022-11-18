@@ -1,22 +1,39 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
+	"io"
 	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/user"
+	"time"
 )
 
 const (
-	endpointStatus  = "/agent/status"
-	endpointVersion = "/agent/version"
+	endpointStatus         = "/agent/status"
+	endpointVersion        = "/agent/version"
+	endpointDogstatsdStats = "/agent/dogstatsd-stats"
+	endpointConfig         = "/agent/config"
+	settingDogstatsStats   = "dogstatsd_stats"
 )
+
+// metricStat holds how many times a metric has been
+// processed and when was the last time.
+// COPY_PASTA from pkg/server/dogstatsd
+type MetricStat struct {
+	Name     string    `json:"name"`
+	Count    uint64    `json:"count"`
+	LastSeen time.Time `json:"last_seen"`
+	Tags     string    `json:"tags"`
+}
 
 type DataFetcher struct {
 	client    *http.Client
@@ -92,12 +109,24 @@ func (df *DataFetcher) setAuthTokenFromEnv() {
 	}
 }
 
-func (df *DataFetcher) constructRequest(endpoint string) *http.Request {
+func (df *DataFetcher) constructGetRequest(endpoint string) *http.Request {
 	uri := fmt.Sprintf("https://%s:%d/%s", df.host, df.port, endpoint)
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
 		panic(err)
 	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", df.AuthToken))
+
+	return req
+}
+
+func (df *DataFetcher) constructPostRequest(endpoint string, contentType string, body io.Reader) *http.Request {
+	uri := fmt.Sprintf("https://%s:%d/%s", df.host, df.port, endpoint)
+	req, err := http.NewRequest("POST", uri, body)
+	if err != nil {
+		panic(err)
+	}
+	req.Header.Add("Content-Type", contentType)
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", df.AuthToken))
 
 	return req
@@ -124,7 +153,7 @@ func (df *DataFetcher) testAuthToken(token string) bool {
 func (df *DataFetcher) statusJson() map[string]any {
 	var result map[string]any
 
-	req := df.constructRequest(endpointStatus)
+	req := df.constructGetRequest(endpointStatus)
 	resp, err := df.client.Do(req)
 	if err != nil {
 		panic(err)
@@ -141,4 +170,75 @@ func (df *DataFetcher) statusJson() map[string]any {
 	}
 
 	return result
+}
+
+func (df *DataFetcher) GetDogstatsdCaptureEnablementValue() bool {
+	req := df.constructGetRequest(fmt.Sprintf("%s/%s", endpointConfig, settingDogstatsStats))
+	resp, err := df.client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(body, &result); err != nil {
+		fmt.Println("Unmarshal failed. Body was: ", string(body))
+		panic(err)
+	}
+
+	return result["value"].(bool)
+}
+
+func (df *DataFetcher) EnableDogstatsdCapture() error {
+	reqBody := fmt.Sprintf("value=%s", html.EscapeString("true"))
+	req := df.constructPostRequest(fmt.Sprintf("%s/%s", endpointConfig, settingDogstatsStats), "application/x-www-form-urlencoded", bytes.NewBuffer([]byte(reqBody)))
+	resp, err := df.client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(body, &result); err != nil {
+		fmt.Println("Unmarshal failed. Body was: ", string(body))
+		panic(err)
+	}
+
+	if newValue, ok := result["value"]; ok {
+		if newValue != true {
+			return errors.New("unable to enable dogstatsd capture, after sending 'enable' it remained false")
+		}
+	}
+
+	return nil
+}
+
+func (df *DataFetcher) fetchDogstatsdCaptureData() (map[uint64]MetricStat, error) {
+	req := df.constructGetRequest(endpointDogstatsdStats)
+	resp, err := df.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var dogStats map[uint64]MetricStat
+	if err := json.Unmarshal(body, &dogStats); err != nil {
+		fmt.Println("Body was: ", string(body))
+		return nil, err
+	}
+
+	return dogStats, nil
+
 }
