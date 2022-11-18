@@ -11,13 +11,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 )
 
+type OverviewPageProps struct {
+	statusObj map[string]any
+}
+
 type OverviewPage struct {
 	rootFlex           *cview.Flex
 	aggregatorTextView *cview.TextView
 	dogstatsdTextView  *cview.TextView
 	metadataTextView   *cview.TextView
 	logsTextView       *cview.TextView
-	newDataChan        chan map[string]any
+	newDataChan        chan OverviewPageProps
 }
 
 //go:embed templates
@@ -74,14 +78,18 @@ func (op *OverviewPage) updateLogTextView(statusObj map[string]any) {
 	renderStatusTemplate(tv, "/logsagent.tmpl", logs)
 }
 
-func (op *OverviewPage) updatePanels(statusObj map[string]any) {
+func (op *OverviewPage) updatePanels(props OverviewPageProps) {
+	statusObj := props.statusObj
+	if statusObj == nil {
+		return
+	}
 	op.updateAggregatorTextView(statusObj)
 	op.updateDogstatsdTextView(statusObj)
 	op.updateMetadataTextView(statusObj)
 	op.updateLogTextView(statusObj)
 }
 
-func NewOverviewPage(newDataChan chan map[string]any, queueUpdateDraw func(func(), ...cview.Primitive)) *OverviewPage {
+func NewOverviewPage(newDataChan chan OverviewPageProps, queueUpdateDraw func(func(), ...cview.Primitive)) *OverviewPage {
 	aggregatorTextView := cview.NewTextView()
 	dogstatsdTextView := cview.NewTextView()
 	metadataTextView := cview.NewTextView()

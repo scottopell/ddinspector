@@ -12,6 +12,7 @@ type QueueUpdateFunc func(func(), ...cview.Primitive)
 // Name ideas: inspector - cmd would be `agent inspector` which feels nice
 type IStatusAppState struct {
 	dogstatsdCaptureEnabled bool
+	statusObj               map[string]any
 }
 
 type IStatusApp struct {
@@ -19,11 +20,13 @@ type IStatusApp struct {
 	df                  *DataFetcher
 	state               *IStatusAppState
 	dogstatsdUpdateChan chan DogstatsdPageProps
+	overviewUpdateChan  chan OverviewPageProps
 }
 
 func (is *IStatusApp) InitState() {
 	is.state = &IStatusAppState{
 		dogstatsdCaptureEnabled: false,
+		statusObj:               nil,
 	}
 }
 
@@ -44,6 +47,14 @@ func (is *IStatusApp) SendDogstatsdProps() {
 	is.dogstatsdUpdateChan <- props
 }
 
+func (is *IStatusApp) SendOverviewProps() {
+	props := OverviewPageProps{
+		statusObj: is.df.statusJson(),
+	}
+
+	is.overviewUpdateChan <- props
+}
+
 func (is *IStatusApp) Run() {
 	log.Print("Running application")
 	refreshInterval, err := time.ParseDuration("1s")
@@ -51,18 +62,18 @@ func (is *IStatusApp) Run() {
 		panic(err)
 	}
 
-	tabbedPanels := cview.NewTabbedPanels()
-
-	newStatusChan := make(chan map[string]any)
 	is.dogstatsdUpdateChan = make(chan DogstatsdPageProps)
-	overviewPage := NewOverviewPage(newStatusChan, is.app.QueueUpdateDraw)
-
+	is.overviewUpdateChan = make(chan OverviewPageProps)
+	overviewPage := NewOverviewPage(is.overviewUpdateChan, is.app.QueueUpdateDraw)
 	dogstatsdPage := NewDogstatsdPage(is.dogstatsdUpdateChan, is.app.QueueUpdateDraw, is.SetDogstatsdCaptureEnabled)
 
+	tabbedPanels := cview.NewTabbedPanels()
+
 	go func() {
-		is.SendDogstatsdProps()
+		go is.SendDogstatsdProps()
 		for {
-			newStatusChan <- is.df.statusJson()
+			is.state.statusObj = is.df.statusJson()
+			go is.SendOverviewProps()
 			time.Sleep(refreshInterval)
 		}
 	}()
