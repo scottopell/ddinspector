@@ -8,12 +8,9 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-	"os/user"
 	"time"
 )
 
@@ -35,14 +32,15 @@ type MetricStat struct {
 	Tags     string    `json:"tags"`
 }
 
-type DataFetcher struct {
+type AgentDataFetcher struct {
 	client    *http.Client
 	AuthToken string
 	host      string
 	port      int
+	agentPid  int32
 }
 
-func NewDataFetcher(host string, port int) *DataFetcher {
+func NewAgentDataFetcher() *AgentDataFetcher {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
@@ -53,63 +51,31 @@ func NewDataFetcher(host string, port int) *DataFetcher {
 	//c := http.Client{Timeout: time.Duration(1) * time.Second, Transport: tr}
 	c := http.Client{Transport: tr}
 
-	df := DataFetcher{
-		host:   host,
-		port:   port,
+	df := AgentDataFetcher{
+		host:   "localhost",
+		port:   5001,
 		client: &c,
 	}
 
-	df.setAuthTokenFromEnv()
+	runningAgent, err := DiscoverRunningAgent()
+	if err != nil {
+		log.Print("Failed to find running agent with valid config. Err: ", err)
+	} else {
+		if !df.testAuthToken(runningAgent.authToken) {
+			log.Printf("Running agent's auth-token fetch failed! Something is wrong... falling back to legacy codepath")
+			return nil
+		} else {
+			log.Print("Found Valid Running Agent:", runningAgent)
+			df.port = runningAgent.cmdPort
+			df.AuthToken = runningAgent.authToken
+			df.agentPid = runningAgent.pid
+		}
+	}
 
 	return &df
 }
 
-func (df *DataFetcher) setAuthTokenFromEnv() {
-	// TODO allow specifying auth_token via cli/env-var
-
-	// Start with list of common locations
-	// TODO - would be cool to have some "autodiscovery" here based on the currently running agent
-	// https://github.com/mitchellh/go-ps
-	currUser, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-	}
-	authTokenLoc1 := fmt.Sprintf("/Users/%s/go/src/github.com/DataDog/datadog-agent/bin/agent/dist/auth_token", currUser.Username)
-	authTokenLoc2 := fmt.Sprintf("/Users/%s/code/datadog-agent/bin/agent/dist/auth_token", currUser.Username)
-	locations := [...]string{
-		authTokenLoc1,
-		authTokenLoc2,
-		"/etc/datadog-agent",
-		"/opt/datadog-agent/etc/auth_token",
-	}
-
-	authToken := ""
-	for _, loc := range locations {
-		auth_token, err := os.ReadFile(loc)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
-			} else {
-				break
-			}
-		}
-		s := string(auth_token)
-		if df.testAuthToken(s) {
-			authToken = s
-			break
-		} else {
-			continue
-		}
-	}
-
-	if authToken == "" {
-		panic(errors.New("no valid auth_tokens found"))
-	} else {
-		df.AuthToken = authToken
-	}
-}
-
-func (df *DataFetcher) constructGetRequest(endpoint string) *http.Request {
+func (df *AgentDataFetcher) constructGetRequest(endpoint string) *http.Request {
 	uri := fmt.Sprintf("https://%s:%d/%s", df.host, df.port, endpoint)
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
@@ -120,7 +86,7 @@ func (df *DataFetcher) constructGetRequest(endpoint string) *http.Request {
 	return req
 }
 
-func (df *DataFetcher) constructPostRequest(endpoint string, contentType string, body io.Reader) *http.Request {
+func (df *AgentDataFetcher) constructPostRequest(endpoint string, contentType string, body io.Reader) *http.Request {
 	uri := fmt.Sprintf("https://%s:%d/%s", df.host, df.port, endpoint)
 	req, err := http.NewRequest("POST", uri, body)
 	if err != nil {
@@ -132,7 +98,7 @@ func (df *DataFetcher) constructPostRequest(endpoint string, contentType string,
 	return req
 }
 
-func (df *DataFetcher) testAuthToken(token string) bool {
+func (df *AgentDataFetcher) testAuthToken(token string) bool {
 	uri := fmt.Sprintf("https://%s:%d/%s", df.host, df.port, endpointVersion)
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
@@ -150,7 +116,7 @@ func (df *DataFetcher) testAuthToken(token string) bool {
 	return resp.StatusCode == 200
 }
 
-func (df *DataFetcher) statusJson() map[string]any {
+func (df *AgentDataFetcher) statusJson() map[string]any {
 	var result map[string]any
 
 	req := df.constructGetRequest(endpointStatus)
@@ -172,7 +138,7 @@ func (df *DataFetcher) statusJson() map[string]any {
 	return result
 }
 
-func (df *DataFetcher) GetDogstatsdCaptureEnablementValue() bool {
+func (df *AgentDataFetcher) GetDogstatsdCaptureEnablementValue() bool {
 	req := df.constructGetRequest(fmt.Sprintf("%s/%s", endpointConfig, settingDogstatsStats))
 	resp, err := df.client.Do(req)
 	if err != nil {
@@ -193,7 +159,7 @@ func (df *DataFetcher) GetDogstatsdCaptureEnablementValue() bool {
 	return result["value"].(bool)
 }
 
-func (df *DataFetcher) EnableDogstatsdCapture() error {
+func (df *AgentDataFetcher) EnableDogstatsdCapture() error {
 	reqBody := fmt.Sprintf("value=%s", html.EscapeString("true"))
 	req := df.constructPostRequest(fmt.Sprintf("%s/%s", endpointConfig, settingDogstatsStats), "application/x-www-form-urlencoded", bytes.NewBuffer([]byte(reqBody)))
 	resp, err := df.client.Do(req)
@@ -221,7 +187,7 @@ func (df *DataFetcher) EnableDogstatsdCapture() error {
 	return nil
 }
 
-func (df *DataFetcher) fetchDogstatsdCaptureData() (map[uint64]MetricStat, error) {
+func (df *AgentDataFetcher) fetchDogstatsdCaptureData() (map[uint64]MetricStat, error) {
 	req := df.constructGetRequest(endpointDogstatsdStats)
 	resp, err := df.client.Do(req)
 	if err != nil {

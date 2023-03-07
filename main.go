@@ -5,8 +5,10 @@ import (
 )
 
 func main() {
-	df := NewDataFetcher("localhost", 5001)
-
+	df := NewAgentDataFetcher()
+	if df == nil {
+		return
+	}
 	app := IStatusApp{
 		app: cview.NewApplication(),
 		df:  df,

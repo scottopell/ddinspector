@@ -18,7 +18,7 @@ type IStatusAppState struct {
 
 type IStatusApp struct {
 	app                 *cview.Application
-	df                  *DataFetcher
+	df                  *AgentDataFetcher
 	state               *IStatusAppState
 	updateInterval      time.Duration
 	dogstatsdUpdateChan chan DogstatsdPageProps
