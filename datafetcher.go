@@ -60,6 +60,7 @@ func NewAgentDataFetcher() *AgentDataFetcher {
 	runningAgent, err := DiscoverRunningAgent()
 	if err != nil {
 		log.Print("Failed to find running agent with valid config. Err: ", err)
+		return nil
 	} else {
 		if !df.testAuthToken(runningAgent.authToken) {
 			log.Printf("Running agent's auth-token fetch failed! Something is wrong... falling back to legacy codepath")
