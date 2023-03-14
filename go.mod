@@ -1,4 +1,4 @@
-module istatus
+module github.com/scottopell/ddinspector
 
 go 1.18
 
