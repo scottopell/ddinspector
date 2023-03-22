@@ -1,11 +1,7 @@
 package main
 
 import (
-	"embed"
 	"fmt"
-	"io"
-	"path"
-	"text/template"
 
 	"code.rocketnine.space/tslocum/cview"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -24,32 +20,12 @@ type OverviewPage struct {
 	newDataChan        chan OverviewPageProps
 }
 
-//go:embed templates
-var templatesFS embed.FS
-
-var fmap = status.Textfmap()
-
-// Copy-Pasta from ./pkg/status/render.go
-// TODO - re-use this function _and_ the templates
-func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", templateName))
-	if tmplErr != nil {
-		fmt.Println(tmplErr)
-		return
-	}
-	t := template.Must(template.New(templateName).Funcs(fmap).Parse(string(tmpl)))
-	err := t.Execute(w, stats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
 func (op *OverviewPage) updateAggregatorTextView(statusObj map[string]any) {
 	tv := op.aggregatorTextView
 	tv.Clear()
 	aggregator := statusObj["aggregatorStats"].(map[string]any)
 
-	renderStatusTemplate(tv, "/aggregator.tmpl", aggregator)
+	status.RenderStatusTemplate(tv, "/aggregator.tmpl", aggregator)
 }
 
 func (op *OverviewPage) updateDogstatsdTextView(statusObj map[string]any) {
@@ -57,7 +33,7 @@ func (op *OverviewPage) updateDogstatsdTextView(statusObj map[string]any) {
 	tv.Clear()
 	aggregator := statusObj["dogstatsdStats"].(map[string]any)
 
-	renderStatusTemplate(tv, "/dogstatsd.tmpl", aggregator)
+	status.RenderStatusTemplate(tv, "/dogstatsd.tmpl", aggregator)
 }
 
 func (op *OverviewPage) updateMetadataTextView(statusObj map[string]any) {
@@ -67,7 +43,7 @@ func (op *OverviewPage) updateMetadataTextView(statusObj map[string]any) {
 	title := fmt.Sprintf("Agent (v%s)", statusObj["version"])
 	statusObj["title"] = title
 
-	renderStatusTemplate(tv, "/header.tmpl", statusObj)
+	status.RenderStatusTemplate(tv, "/header.tmpl", statusObj)
 }
 
 func (op *OverviewPage) updateLogTextView(statusObj map[string]any) {
@@ -75,7 +51,7 @@ func (op *OverviewPage) updateLogTextView(statusObj map[string]any) {
 	tv.Clear()
 	logs := statusObj["logsStats"].(map[string]any)
 
-	renderStatusTemplate(tv, "/logsagent.tmpl", logs)
+	status.RenderStatusTemplate(tv, "/logsagent.tmpl", logs)
 }
 
 func (op *OverviewPage) updatePanels(props OverviewPageProps) {
