@@ -5,7 +5,8 @@ Like `agent status` but more `~~interactive~~`
 ![screenshot](./img/screenshot.gif)
 
 ```
-go install github.com/scottopell/ddinspector
+# Coming soon!
+# go install github.com/scottopell/ddinspector
 ```
 
 ## Features
