@@ -1,8 +1,10 @@
-package main
+package gui
 
 import (
 	"fmt"
 	"time"
+
+	"github.com/scottopell/ddinspector/pkg/util"
 
 	"code.rocketnine.space/tslocum/cview"
 )
@@ -15,7 +17,7 @@ type DogstatsdPage struct {
 
 type DogstatsdPageProps struct {
 	dogstatsdCaptureEnabled bool
-	dogstatsdData           map[uint64]MetricStat
+	dogstatsdData           map[uint64]util.MetricStat
 }
 
 func (dp *DogstatsdPage) update(data DogstatsdPageProps) {

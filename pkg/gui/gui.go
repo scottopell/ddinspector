@@ -1,42 +1,43 @@
-package main
+package gui
 
 import (
 	"log"
 	"time"
+
+	"github.com/scottopell/ddinspector/pkg/util"
 
 	"code.rocketnine.space/tslocum/cview"
 )
 
 type QueueUpdateFunc func(func(), ...cview.Primitive)
 
-// Name ideas: inspector - cmd would be `agent inspector` which feels nice
-type IStatusAppState struct {
+type DDInspectorAppState struct {
 	dogstatsdCaptureEnabled bool
 	statusObj               map[string]any
-	dogstatsdCaptureData    map[uint64]MetricStat
+	dogstatsdCaptureData    map[uint64]util.MetricStat
 }
 
-type IStatusApp struct {
-	app                 *cview.Application
-	df                  *AgentDataFetcher
-	state               *IStatusAppState
+type DDInspectorApp struct {
+	App                 *cview.Application
+	Df                  *util.AgentDataFetcher
+	state               *DDInspectorAppState
 	updateInterval      time.Duration
 	dogstatsdUpdateChan chan DogstatsdPageProps
 	overviewUpdateChan  chan OverviewPageProps
 	checksUpdateChan    chan ChecksPageProps
 }
 
-func (is *IStatusApp) InitState() {
-	isDogstatsdCaptureEnabled := is.df.GetDogstatsdCaptureEnablementValue()
-	is.state = &IStatusAppState{
+func (is *DDInspectorApp) InitState() {
+	isDogstatsdCaptureEnabled := is.Df.GetDogstatsdCaptureEnablementValue()
+	is.state = &DDInspectorAppState{
 		dogstatsdCaptureEnabled: isDogstatsdCaptureEnabled,
 		statusObj:               nil,
 		dogstatsdCaptureData:    nil,
 	}
 }
 
-func (is *IStatusApp) SetDogstatsdCaptureEnabled(enabled bool) {
-	if err := is.df.EnableDogstatsdCapture(); err != nil {
+func (is *DDInspectorApp) SetDogstatsdCaptureEnabled(enabled bool) {
+	if err := is.Df.EnableDogstatsdCapture(); err != nil {
 		// TODO display this error to the user in the UI
 		log.Println("Unable to enable dogstatsd capture :(")
 		return
@@ -47,7 +48,7 @@ func (is *IStatusApp) SetDogstatsdCaptureEnabled(enabled bool) {
 	is.SendDogstatsdProps()
 }
 
-func (is *IStatusApp) SendDogstatsdProps() {
+func (is *DDInspectorApp) SendDogstatsdProps() {
 	props := DogstatsdPageProps{
 		dogstatsdCaptureEnabled: is.state.dogstatsdCaptureEnabled,
 	}
@@ -57,29 +58,29 @@ func (is *IStatusApp) SendDogstatsdProps() {
 	is.dogstatsdUpdateChan <- props
 }
 
-func (is *IStatusApp) SendOverviewProps() {
+func (is *DDInspectorApp) SendOverviewProps() {
 	props := OverviewPageProps{
-		statusObj: is.df.statusJson(),
+		statusObj: is.Df.StatusJson(),
 	}
 
 	is.overviewUpdateChan <- props
 }
 
-func (is *IStatusApp) SendChecksProps() {
+func (is *DDInspectorApp) SendChecksProps() {
 	props := ChecksPageProps{
-		statusObj: is.df.statusJson(),
+		statusObj: is.Df.StatusJson(),
 	}
 
 	is.checksUpdateChan <- props
 }
 
-func (is *IStatusApp) UpdateLoop() {
+func (is *DDInspectorApp) UpdateLoop() {
 	go is.SendDogstatsdProps()
 	go is.SendChecksProps()
 	for {
-		is.state.statusObj = is.df.statusJson()
+		is.state.statusObj = is.Df.StatusJson()
 		if is.state.dogstatsdCaptureEnabled {
-			d, err := is.df.fetchDogstatsdCaptureData()
+			d, err := is.Df.FetchDogstatsdCaptureData()
 			if err == nil {
 				is.state.dogstatsdCaptureData = d
 			} else {
@@ -93,7 +94,7 @@ func (is *IStatusApp) UpdateLoop() {
 	}
 }
 
-func (is *IStatusApp) Run() {
+func (is *DDInspectorApp) Run() {
 	log.Print("Running application")
 	refreshInterval, err := time.ParseDuration("1s")
 	if err != nil {
@@ -104,9 +105,9 @@ func (is *IStatusApp) Run() {
 	is.dogstatsdUpdateChan = make(chan DogstatsdPageProps)
 	is.overviewUpdateChan = make(chan OverviewPageProps)
 	is.checksUpdateChan = make(chan ChecksPageProps)
-	overviewPage := NewOverviewPage(is.overviewUpdateChan, is.app.QueueUpdateDraw)
-	dogstatsdPage := NewDogstatsdPage(is.dogstatsdUpdateChan, is.app.QueueUpdateDraw, is.SetDogstatsdCaptureEnabled)
-	checksPage := NewChecksPage(is.checksUpdateChan, is.app.QueueUpdateDraw)
+	overviewPage := NewOverviewPage(is.overviewUpdateChan, is.App.QueueUpdateDraw)
+	dogstatsdPage := NewDogstatsdPage(is.dogstatsdUpdateChan, is.App.QueueUpdateDraw, is.SetDogstatsdCaptureEnabled)
+	checksPage := NewChecksPage(is.checksUpdateChan, is.App.QueueUpdateDraw)
 	streamLogsPage := NewStreamLogsPage()
 
 	tabbedPanels := cview.NewTabbedPanels()
@@ -118,11 +119,11 @@ func (is *IStatusApp) Run() {
 
 	root := tabbedPanels
 
-	is.app.SetRoot(root, true)
-	is.app.EnableMouse(true)
-	is.app.SetFocus(root)
+	is.App.SetRoot(root, true)
+	is.App.EnableMouse(true)
+	is.App.SetFocus(root)
 	go is.UpdateLoop()
-	if err := is.app.Run(); err != nil {
+	if err := is.App.Run(); err != nil {
 		panic(err)
 	}
 }

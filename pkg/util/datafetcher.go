@@ -1,4 +1,4 @@
-package main
+package util
 
 import (
 	"bytes"
@@ -117,7 +117,7 @@ func (df *AgentDataFetcher) testAuthToken(token string) bool {
 	return resp.StatusCode == 200
 }
 
-func (df *AgentDataFetcher) statusJson() map[string]any {
+func (df *AgentDataFetcher) StatusJson() map[string]any {
 	var result map[string]any
 
 	req := df.constructGetRequest(endpointStatus)
@@ -188,7 +188,7 @@ func (df *AgentDataFetcher) EnableDogstatsdCapture() error {
 	return nil
 }
 
-func (df *AgentDataFetcher) fetchDogstatsdCaptureData() (map[uint64]MetricStat, error) {
+func (df *AgentDataFetcher) FetchDogstatsdCaptureData() (map[uint64]MetricStat, error) {
 	req := df.constructGetRequest(endpointDogstatsdStats)
 	resp, err := df.client.Do(req)
 	if err != nil {
