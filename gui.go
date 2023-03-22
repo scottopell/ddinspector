@@ -23,6 +23,7 @@ type IStatusApp struct {
 	updateInterval      time.Duration
 	dogstatsdUpdateChan chan DogstatsdPageProps
 	overviewUpdateChan  chan OverviewPageProps
+	checksUpdateChan    chan ChecksPageProps
 }
 
 func (is *IStatusApp) InitState() {
@@ -64,8 +65,17 @@ func (is *IStatusApp) SendOverviewProps() {
 	is.overviewUpdateChan <- props
 }
 
+func (is *IStatusApp) SendChecksProps() {
+	props := ChecksPageProps{
+		statusObj: is.df.statusJson(),
+	}
+
+	is.checksUpdateChan <- props
+}
+
 func (is *IStatusApp) UpdateLoop() {
 	go is.SendDogstatsdProps()
+	go is.SendChecksProps()
 	for {
 		is.state.statusObj = is.df.statusJson()
 		if is.state.dogstatsdCaptureEnabled {
@@ -78,6 +88,7 @@ func (is *IStatusApp) UpdateLoop() {
 		}
 		go is.SendOverviewProps()
 		go is.SendDogstatsdProps()
+		go is.SendChecksProps()
 		time.Sleep(is.updateInterval)
 	}
 }
@@ -92,13 +103,16 @@ func (is *IStatusApp) Run() {
 
 	is.dogstatsdUpdateChan = make(chan DogstatsdPageProps)
 	is.overviewUpdateChan = make(chan OverviewPageProps)
+	is.checksUpdateChan = make(chan ChecksPageProps)
 	overviewPage := NewOverviewPage(is.overviewUpdateChan, is.app.QueueUpdateDraw)
 	dogstatsdPage := NewDogstatsdPage(is.dogstatsdUpdateChan, is.app.QueueUpdateDraw, is.SetDogstatsdCaptureEnabled)
+	checksPage := NewChecksPage(is.checksUpdateChan, is.app.QueueUpdateDraw)
 	streamLogsPage := NewStreamLogsPage()
 
 	tabbedPanels := cview.NewTabbedPanels()
 
 	tabbedPanels.AddTab("overview", "Overview", overviewPage.rootFlex)
+	tabbedPanels.AddTab("checks", "Checks", checksPage.rootFlex)
 	tabbedPanels.AddTab("dogstatsd", "Dogstatsd", dogstatsdPage.rootFlex)
 	tabbedPanels.AddTab("stream_logs", "Stream Logs", streamLogsPage.rootFlex)
 
