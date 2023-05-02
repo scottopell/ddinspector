@@ -43,6 +43,9 @@ func DiscoverRunningAgent() (*RunningAgentInfo, error) {
 		// TODO ideally we don't need to shell out to the `go` binary
 		// See https://pkg.go.dev/runtime/debug#ReadBuildInfo
 		// See https://cs.opensource.google/go/go/+/refs/tags/go1.20.1:src/cmd/go/internal/version/version.go
+
+		// DD Agent has go-bin detection code, see:
+		// See https://github.com/DataDog/datadog-agent/blob/e95060a5784109c275a894a6c25e193f180ac125/pkg/network/go/binversion/buildinfo.go#L71
 		goVersionCmd := exec.Command("go", "version", "-m", exe)
 		versionOutput, err := goVersionCmd.Output()
 		if err != nil {
